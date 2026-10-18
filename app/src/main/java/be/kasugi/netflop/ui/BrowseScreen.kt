@@ -60,7 +60,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -143,7 +142,8 @@ fun buildRows(lib: Library, store: ProfileStore, section: Section): List<RowData
         val all = lib.titles.filter(filter).sortedBy { normalize(it.name) }
         if (all.isNotEmpty()) rows += RowData("all", if (section == Section.SERIES) "Toutes les séries" else "Tous les films", all)
     }
-    return rows
+    // Sécurité : jamais deux fois la même clé dans une liste
+    return rows.distinctBy { it.key }.map { r -> RowData(r.key, r.title, r.titles.distinctBy { it.id }) }
 }
 
 @Composable
@@ -218,7 +218,6 @@ private fun NavRail(state: AppState, section: Section, onSelect: (Section) -> Un
                 else Brush.horizontalGradient(listOf(Color(0xCC000000), Color.Transparent))
             )
             .onFocusChanged { hasFocus = it.hasFocus }
-            .focusRestorer { selectedReq }
             .padding(start = 18.dp, top = 26.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -395,8 +394,7 @@ private fun RowsContent(state: AppState, section: Section) {
                                     state = state.listState("row-${section.name}-${row.key}"),
                                     contentPadding = PaddingValues(start = 44.dp, end = 300.dp, top = 12.dp, bottom = 14.dp),
                                     horizontalArrangement = Arrangement.spacedBy(14.dp),
-                                    modifier = Modifier.focusRestorer(),
-                                ) {
+                                                ) {
                                     items(row.titles, key = { it.id }) { t ->
                                         val cardKey = "${row.key}/${t.id}"
                                         val req = if (cardKey == restoreKey) remember { FocusRequester() } else null

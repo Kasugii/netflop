@@ -93,16 +93,19 @@ object Tmdb {
     /** Clé lue dans Netflop/tmdb.txt (clé API v3 ou jeton de lecture v4). */
     fun configure(root: File?) {
         key = root?.let { r ->
-            listOf("tmdb.txt", "TMDB.txt", "tmdb.key", "_sons/tmdb.txt")
-                .map { File(r, it) }
-                .firstOrNull { it.isFile }
-                ?.let { f ->
-                    try {
-                        f.readText().lineSequence().map { it.trim().removePrefix("﻿") }.firstOrNull { it.isNotBlank() }
-                    } catch (_: Throwable) {
-                        null
-                    }
+            val candidates = listOf(r, File(r, "_sons")).flatMap { d -> (d.listFiles() ?: emptyArray()).toList() }
+                .filter { it.isFile && it.name.lowercase().let { n -> n.startsWith("tmdb") && (n.endsWith(".txt") || n.endsWith(".key")) } }
+                .sortedBy { it.name.length }
+            candidates.firstNotNullOfOrNull { f ->
+                try {
+                    f.readText().lineSequence()
+                        .map { it.trim().removePrefix("\uFEFF").trim() }
+                        .map { line -> line.substringAfter(':', line).substringAfter('=', line).trim().trim('"', '\'') }
+                        .firstOrNull { it.length >= 20 }
+                } catch (_: Throwable) {
+                    null
                 }
+            }
         }
     }
 

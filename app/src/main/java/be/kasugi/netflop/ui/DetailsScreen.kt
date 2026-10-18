@@ -50,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -208,7 +207,6 @@ private fun RelatedRow(
             LazyRow(
                 contentPadding = PaddingValues(start = 44.dp, end = 300.dp, top = 12.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.focusRestorer(),
             ) {
                 items(titles, key = { it.id }) { o ->
                     TitleCard(
@@ -238,8 +236,7 @@ private fun EpisodesBlock(state: AppState, t: Title, store: ProfileStore, next: 
         if (t.seasons.size > 1) {
             Row(
                 Modifier
-                    .padding(start = 44.dp, bottom = 6.dp)
-                    .focusRestorer(),
+                    .padding(start = 44.dp, bottom = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 t.seasons.forEachIndexed { i, s ->
@@ -254,7 +251,6 @@ private fun EpisodesBlock(state: AppState, t: Title, store: ProfileStore, next: 
                 state = rowState,
                 contentPadding = PaddingValues(start = 44.dp, end = 300.dp, top = 12.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.focusRestorer(),
             ) {
                 items(season.episodes, key = { it.key }) { ep ->
                     EpisodeCard(ep, t.id, store, isNext = ep.key == next?.key) {

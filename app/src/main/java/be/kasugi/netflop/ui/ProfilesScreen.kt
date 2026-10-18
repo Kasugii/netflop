@@ -240,8 +240,14 @@ fun ProfilesScreen(state: AppState, requestPermission: () -> Unit) {
                             chosen = i
                             scope.launch {
                                 delay(420)
-                                state.openProfile(dir, i)
-                                state.push(Screen.Browse(Section.HOME))
+                                try {
+                                    state.openProfile(dir, i)
+                                    state.push(Screen.Browse(Section.HOME))
+                                } catch (e: Throwable) {
+                                    state.loading = false
+                                    chosen = -1
+                                    state.crash = CrashReport.format(e)
+                                }
                             }
                         }
                     }
@@ -273,7 +279,7 @@ private fun SoundToggle(ctx: android.content.Context) {
     var on by remember { mutableStateOf(Sounds.enabled) }
     var focused by remember { mutableStateOf(false) }
     Text(
-        if (on) "Sons de l'interface : activés" else "Sons de l'interface : désactivés",
+        if (on) "Son d'ouverture : activé" else "Son d'ouverture : désactivé",
         color = if (focused) Color.White else Color(0xFF808080),
         fontSize = 15.sp,
         modifier = Modifier
@@ -281,7 +287,6 @@ private fun SoundToggle(ctx: android.content.Context) {
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                 on = !on
                 Sounds.setEnabled(ctx, on)
-                Sounds.select()
             }
             .thenIf(focused) { border(1.dp, Color.White, RoundedCornerShape(4.dp)) }
             .padding(horizontal = 12.dp, vertical = 6.dp),

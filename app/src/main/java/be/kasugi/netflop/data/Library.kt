@@ -204,12 +204,22 @@ object Scanner {
 
     fun avatarOf(profileDir: File): File? = findImage(profileDir, listOf("avatar", "profil", "profile"))
 
+    private val AUDIO_EXT = setOf("mp3", "wav", "ogg", "m4a", "aac", "flac", "opus")
+
+    /** Son d'ouverture perso : Netflop/intro.mp3 (accepte aussi "intro.mp3.mp3"). */
     fun introOverride(root: File): File? {
-        val dirs = listOf(root, File(root, "_sons"))
-        for (d in dirs) {
-            val f = (d.listFiles() ?: continue).firstOrNull {
-                it.isFile && it.nameWithoutExtension.equals("intro", true) &&
-                    it.extension.lowercase(Locale.ROOT) in setOf("mp3", "wav", "ogg", "m4a", "aac", "flac")
+        for (d in listOf(root, File(root, "_sons"))) {
+            val f = (d.listFiles() ?: continue).firstOrNull { file ->
+                if (!file.isFile) return@firstOrNull false
+                var b = file.name.lowercase(Locale.ROOT)
+                var hadAudio = false
+                while (true) {
+                    val e = b.substringAfterLast('.', "")
+                    if (e.isEmpty() || e !in AUDIO_EXT) break
+                    hadAudio = true
+                    b = b.dropLast(e.length + 1)
+                }
+                hadAudio && b.trim() == "intro"
             }
             if (f != null) return f
         }
@@ -456,7 +466,16 @@ object Scanner {
             it.isFile && it.extension.lowercase(Locale.ROOT) in IMAGE_EXT
         }
         if (images.isEmpty()) return null
-        val byBase = images.associateBy { it.nameWithoutExtension.lowercase(Locale.ROOT) }
+        // Windows cache les extensions : "avatar.jpg" peut en réalité s'appeler "avatar.jpg.jpg"
+        val byBase = images.associateBy { f ->
+            var b = f.name.lowercase(Locale.ROOT)
+            while (true) {
+                val e = b.substringAfterLast('.', "")
+                if (e.isEmpty() || e !in IMAGE_EXT || b.length == e.length + 1) break
+                b = b.dropLast(e.length + 1)
+            }
+            b.trim()
+        }
         for (n in names) byBase[n.lowercase(Locale.ROOT)]?.let { return it }
         return null
     }

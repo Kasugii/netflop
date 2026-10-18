@@ -98,6 +98,9 @@ class AppState(private val context: Context) {
 
     var searchQuery by mutableStateOf("")
 
+    /** Dernier plantage à afficher. */
+    var crash by mutableStateOf<String?>(null)
+
     /** Le contenu (et non le menu) doit reprendre le focus à l'arrivée sur l'écran. */
     var wantContentFocus = true
 
@@ -127,7 +130,12 @@ class AppState(private val context: Context) {
     suspend fun openProfile(dir: File, index: Int) {
         val r = root ?: return
         loading = true
-        val lib = withContext(Dispatchers.IO) { Scanner.scanProfile(r, dir) }
+        val lib = try {
+            withContext(Dispatchers.IO) { Scanner.scanProfile(r, dir) }
+        } finally {
+            loading = false
+        }
+        loading = true
         val st = withContext(Dispatchers.IO) {
             ProfileStore(File(context.filesDir, "profiles/" + dir.name.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".json"))
         }
@@ -155,8 +163,13 @@ class AppState(private val context: Context) {
         prefetchJob = scope.launch {
             // D'abord ce qui est en cours / récent, puis le reste
             val order = (store?.recentlyWatched(lib).orEmpty() + lib.titles).distinctBy { it.id }
-            order.chunked(8).forEach { chunk ->
-                chunk.map { t -> launch { runCatching { Tmdb.ensure(t) } } }.joinAll()
+            try {
+                order.chunked(8).forEach { chunk ->
+                    chunk.map { t -> launch { runCatching { Tmdb.ensure(t) } } }.joinAll()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Throwable) {
             }
         }
     }
@@ -195,6 +208,11 @@ class AppState(private val context: Context) {
 
 @Composable
 fun NetflopApp(state: AppState, requestPermission: () -> Unit) {
+    val crash = state.crash
+    if (crash != null) {
+        CrashScreen(crash) { state.crash = null }
+        return
+    }
     Box(
         Modifier
             .fillMaxSize()

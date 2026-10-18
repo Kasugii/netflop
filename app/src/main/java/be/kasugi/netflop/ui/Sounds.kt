@@ -46,16 +46,11 @@ object Sounds {
         pool?.play(id, vol, vol, 1, 0, 1f)
     }
 
-    fun nav() {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastNav < 45) return
-        lastNav = now
-        play(navId, 0.35f)
-    }
-
-    fun select() = play(selectId, 0.6f)
-    fun back() = play(backId, 0.5f)
-    fun profile() = play(profileId, 0.8f)
+    // Interface silencieuse : seul le son d'ouverture est joué.
+    fun nav() {}
+    fun select() {}
+    fun back() {}
+    fun profile() {}
 
     fun playIntro(context: Context, override: File?) {
         if (!enabled) return
