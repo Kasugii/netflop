@@ -253,17 +253,6 @@ fun ProfilesScreen(state: AppState, requestPermission: () -> Unit) {
                     }
                 }
                 AutoFocus(first)
-                Spacer(Modifier.height(46.dp))
-                SoundToggle(ctx)
-                if (be.kasugi.netflop.data.Tmdb.enabled) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        "Images et résumés : The Movie Database (TMDB). Ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB.",
-                        color = Color(0xFF5E5E5E),
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                }
             }
         }
         if (state.loading) {

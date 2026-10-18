@@ -282,7 +282,7 @@ object Scanner {
         }
     }
 
-    private val TMDB_RE = Regex("""(?i)[\[{(]\s*tmdb(?:id)?\s*[-=:]\s*(\d+)\s*[\]})]""")
+    private val TMDB_RE = Regex("""(?i)[\[\{(]\s*tmdb(?:id)?\s*[-=:]\s*(\d+)\s*[\]\})]""")
 
     /** Identifiant TMDB forcé dans le nom : "Naruto {tmdb-46260}" ou "[tmdbid-46260]". */
     fun tmdbHint(name: String): Int? = TMDB_RE.find(name)?.groupValues?.get(1)?.toIntOrNull()
@@ -395,7 +395,7 @@ object Scanner {
 
     /** (saison, épisode, titre) depuis un nom de fichier. */
     fun parseEpisode(raw: String): Triple<Int?, Int?, String> {
-        var s = raw.replace(Regex("""\[[^\]]*]"""), " ").replace(Regex("""\{[^}]*}"""), " ")
+        var s = raw.replace(Regex("""\[[^\]]*\]"""), " ").replace(Regex("""\{[^\}]*\}"""), " ")
         if (!s.contains(' ')) s = s.replace('.', ' ')
         s = s.replace('_', ' ')
         var season: Int? = null
@@ -437,7 +437,7 @@ object Scanner {
 
     /** Nettoie un nom de dossier/fichier → (nom, année). */
     fun cleanName(raw: String): Pair<String, Int?> {
-        var s = raw.replace(Regex("""\[[^\]]*]"""), " ").replace(Regex("""\{[^}]*}"""), " ")
+        var s = raw.replace(Regex("""\[[^\]]*\]"""), " ").replace(Regex("""\{[^\}]*\}"""), " ")
             .replace(Regex("""(?i)\(\s*tmdb(?:id)?\s*[-=:]\s*\d+\s*\)"""), " ")
         s = if (!s.contains(' ')) s.replace('.', ' ').replace('_', ' ') else s.replace('_', ' ')
         var year: Int? = null

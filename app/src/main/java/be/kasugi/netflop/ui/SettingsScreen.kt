@@ -269,6 +269,14 @@ fun SettingsScreen(state: AppState) {
                     Spacer(Modifier.height(10.dp))
                     }
                 }
+                item {
+                    Text(
+                        "Images et résumés : The Movie Database (TMDB). Ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB.",
+                        color = Color(0xFF5E5E5E),
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(bottom = 10.dp),
+                    )
+                }
                 if (l == null) {
                     item {
                         Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
