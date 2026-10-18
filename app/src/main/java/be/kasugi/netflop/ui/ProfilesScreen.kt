@@ -2,6 +2,12 @@ package be.kasugi.netflop.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -21,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -50,6 +57,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import be.kasugi.netflop.data.Scanner
+import be.kasugi.netflop.data.Role
+import be.kasugi.netflop.data.SettingsStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -181,6 +190,7 @@ fun ProfilesScreen(state: AppState, requestPermission: () -> Unit) {
         if (!state.hasPermission) requestPermission()
     }
     Box(Modifier.fillMaxSize().background(Bg), contentAlignment = Alignment.Center) {
+        AmbientBackground(state.profileIndex)
         NetflopWordmark(Modifier.align(Alignment.TopStart).padding(start = 48.dp, top = 18.dp), fontSizeSp = 30)
         when {
             !state.hasPermission -> MessageBlock(
@@ -203,18 +213,33 @@ fun ProfilesScreen(state: AppState, requestPermission: () -> Unit) {
             ) { state.refreshRoot() }
 
             else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Qui est-ce ?", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.height(36.dp))
+                val titleIn = remember { Animatable(0f) }
+                LaunchedEffect(Unit) { titleIn.animateTo(1f, tween(500)) }
+                Text(
+                    "Qui est-ce ?",
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = titleIn.value
+                        translationY = (1f - titleIn.value) * -30f
+                    },
+                )
+                Spacer(Modifier.height(40.dp))
                 val first = remember { FocusRequester() }
-                Row(horizontalArrangement = Arrangement.spacedBy(30.dp)) {
+                var chosen by remember { mutableStateOf(-1) }
+                Row(horizontalArrangement = Arrangement.spacedBy(34.dp)) {
                     state.profiles.forEachIndexed { i, dir ->
                         ProfileTile(
                             dir, i,
+                            chosen = chosen,
                             focusRequester = if (i == state.profileIndex.coerceIn(0, state.profiles.lastIndex)) first else null,
                         ) {
-                            if (state.loading) return@ProfileTile
+                            if (state.loading || chosen >= 0) return@ProfileTile
                             Sounds.profile()
+                            chosen = i
                             scope.launch {
+                                delay(420)
                                 state.openProfile(dir, i)
                                 state.push(Screen.Browse(Section.HOME))
                             }
@@ -224,6 +249,15 @@ fun ProfilesScreen(state: AppState, requestPermission: () -> Unit) {
                 AutoFocus(first)
                 Spacer(Modifier.height(46.dp))
                 SoundToggle(ctx)
+                if (be.kasugi.netflop.data.Tmdb.enabled) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Images et résumés : The Movie Database (TMDB). Ce produit utilise l'API TMDB sans être approuvé ni certifié par TMDB.",
+                        color = Color(0xFF5E5E5E),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         }
         if (state.loading) {
@@ -254,32 +288,122 @@ private fun SoundToggle(ctx: android.content.Context) {
     )
 }
 
+/** Fond animé : halos de couleur qui dérivent lentement. */
 @Composable
-private fun ProfileTile(dir: File, index: Int, focusRequester: FocusRequester?, onClick: () -> Unit) {
+private fun AmbientBackground(index: Int) {
+    val t = rememberInfiniteTransition(label = "ambient")
+    val a by t.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Reverse), label = "a")
+    val b by t.animateFloat(0f, 1f, infiniteRepeatable(tween(19_000, easing = LinearEasing), RepeatMode.Reverse), label = "b")
+    val accent = AvatarColors[index % AvatarColors.size]
+    Canvas(Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        drawCircle(
+            Brush.radialGradient(
+                listOf(NetRed.copy(alpha = 0.22f), Color.Transparent),
+                center = Offset(w * (0.15f + 0.25f * a), h * (0.2f + 0.3f * b)),
+                radius = w * 0.45f,
+            ),
+            radius = w * 0.45f,
+            center = Offset(w * (0.15f + 0.25f * a), h * (0.2f + 0.3f * b)),
+        )
+        drawCircle(
+            Brush.radialGradient(
+                listOf(accent.copy(alpha = 0.16f), Color.Transparent),
+                center = Offset(w * (0.85f - 0.3f * b), h * (0.75f - 0.25f * a)),
+                radius = w * 0.5f,
+            ),
+            radius = w * 0.5f,
+            center = Offset(w * (0.85f - 0.3f * b), h * (0.75f - 0.25f * a)),
+        )
+        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0x99000000))))
+    }
+}
+
+@Composable
+private fun ProfileTile(dir: File, index: Int, chosen: Int, focusRequester: FocusRequester?, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.12f else 1f, tween(170), label = "profile")
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(150.dp)) {
-        Box(
-            Modifier
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-                .onFocusChanged {
-                    if (it.isFocused != focused) {
-                        focused = it.isFocused
-                        if (it.isFocused) Sounds.nav()
+    val color = AvatarColors[index % AvatarColors.size]
+    // Entrée en cascade
+    val enter = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(120L + index * 90L)
+        enter.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = 220f))
+    }
+    // Respiration du profil sélectionné
+    val pulse = rememberInfiniteTransition(label = "pulse")
+    val breath by pulse.animateFloat(0f, 1f, infiniteRepeatable(tween(1_400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "breath")
+    val isChosen = chosen == index
+    val target = when {
+        isChosen -> 1.35f
+        focused -> 1.12f
+        else -> 1f
+    }
+    val scale by animateFloatAsState(target, tween(if (isChosen) 400 else 170), label = "profile")
+    val fadeOthers by animateFloatAsState(if (chosen >= 0 && !isChosen) 0f else 1f, tween(300), label = "fade")
+    val glow by animateFloatAsState(if (focused || isChosen) 1f else 0f, tween(250), label = "glow")
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .width(150.dp)
+            .graphicsLayer {
+                alpha = enter.value.coerceIn(0f, 1f) * fadeOthers
+                translationY = (1f - enter.value) * 60f
+            },
+    ) {
+        Box(Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+            // Halo coloré derrière l'avatar
+            Canvas(Modifier.requiredSize(240.dp)) {
+                val r = size.minDimension / 2f * (0.85f + 0.08f * breath)
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(color.copy(alpha = 0.55f * glow), color.copy(alpha = 0.18f * glow), Color.Transparent),
+                        center = center,
+                        radius = r,
+                    ),
+                    radius = r,
+                )
+            }
+            Box(
+                Modifier
+                    .graphicsLayer {
+                        val s = scale * (if (focused && !isChosen) 1f + 0.015f * breath else 1f)
+                        scaleX = s
+                        scaleY = s
+                        shadowElevation = if (focused) 24f else 6f
+                        shape = RoundedCornerShape(10.dp)
+                        clip = true
+                    }
+                    .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                    .onFocusChanged {
+                        if (it.isFocused != focused) {
+                            focused = it.isFocused
+                            if (it.isFocused) Sounds.nav()
+                        }
+                    }
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
+                    .size(130.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .thenIf(focused) { border(4.dp, Color.White, RoundedCornerShape(10.dp)) }
+            ) {
+                ProfileAvatar(dir, index, Modifier.fillMaxSize())
+                // Reflet qui passe sur l'avatar au focus
+                if (focused) {
+                    Canvas(Modifier.fillMaxSize()) {
+                        val x = size.width * (-0.6f + 2.2f * breath)
+                        drawRect(
+                            Brush.linearGradient(
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.18f), Color.Transparent),
+                                start = Offset(x - size.width * 0.3f, 0f),
+                                end = Offset(x + size.width * 0.3f, size.height),
+                            )
+                        )
                     }
                 }
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
-                .size(130.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .thenIf(focused) { border(4.dp, Color.White, RoundedCornerShape(8.dp)) }
-        ) {
-            ProfileAvatar(dir, index, Modifier.fillMaxSize())
+            }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
+        val ps = SettingsStore.get(dir.name)
         Text(
             dir.name,
             color = if (focused) Color.White else Color(0xFF8C8C8C),
@@ -288,6 +412,10 @@ private fun ProfileTile(dir: File, index: Int, focusRequester: FocusRequester?, 
             textAlign = TextAlign.Center,
             maxLines = 1,
         )
+        if (ps.role == Role.KIDS) {
+            Spacer(Modifier.height(4.dp))
+            Text("ENFANT", color = Color(0xFFF5C518), fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp)
+        }
     }
 }
 

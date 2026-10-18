@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -84,6 +85,9 @@ class RowData(val key: String, val title: String, val titles: List<Title>)
 private val RailCollapsed = 76.dp
 private val RailExpanded = 250.dp
 
+val FILM_WORDS = setOf("film", "films", "movie", "movies", "cinema")
+val SERIE_WORDS = setOf("serie", "series", "tv", "shows", "show")
+
 fun buildRows(lib: Library, store: ProfileStore, section: Section): List<RowData> {
     val filter: (Title) -> Boolean = when (section) {
         Section.SERIES -> { t -> t.kind == Kind.SERIES }
@@ -97,9 +101,30 @@ fun buildRows(lib: Library, store: ProfileStore, section: Section): List<RowData
     if (newest.size >= 4 && section == Section.HOME) rows += RowData("new", "Nouveautés", newest)
     val recent = store.recentlyWatched(lib).filter(filter)
     if (recent.isNotEmpty()) rows += RowData("recent", "Regardés récemment", recent)
+    // Un film rangé dans "Animés" apparaît aussi dans "Films" (et une série dans "Séries")
+    val movies = lib.titles.filter { it.kind == Kind.MOVIE }
+    val series = lib.titles.filter { it.kind == Kind.SERIES }
+    var filmsRow = false
+    var seriesRow = false
     for (c in lib.categories) {
-        val list = c.titles.filter(filter)
-        if (list.isNotEmpty()) rows += RowData("cat:" + c.name, c.name, list)
+        val n = normalize(c.name)
+        val (title, titles) = when {
+            n in FILM_WORDS -> {
+                filmsRow = true
+                "Films" to (c.titles + movies).distinctBy { it.id }
+            }
+            n in SERIE_WORDS -> {
+                seriesRow = true
+                "Séries" to (c.titles + series).distinctBy { it.id }
+            }
+            else -> c.name to c.titles
+        }
+        val list = titles.filter(filter)
+        if (list.isNotEmpty()) rows += RowData("cat:" + c.name, title, list)
+    }
+    if (section == Section.HOME) {
+        if (!filmsRow && movies.isNotEmpty() && lib.categories.size > 1) rows += RowData("cat:films", "Films", movies)
+        if (!seriesRow && series.isNotEmpty() && lib.categories.size > 1) rows += RowData("cat:series", "Séries", series)
     }
     if (section == Section.HOME || section == Section.MOVIES || section == Section.SERIES) {
         val byGenre = linkedMapOf<String, MutableList<Title>>()
@@ -230,6 +255,18 @@ private fun NavRail(state: AppState, section: Section, onSelect: (Section) -> Un
             )
         }
         Spacer(Modifier.height(28.dp))
+        if (state.canManage) {
+            RailItem(
+                label = "Paramètres",
+                expanded = hasFocus,
+                selected = false,
+                icon = { c -> RailIcon(Icons.Filled.Settings, c) },
+                onClick = {
+                    state.wantContentFocus = true
+                    state.push(Screen.Settings)
+                },
+            )
+        }
         RailItem(
             label = "Actualiser",
             expanded = hasFocus,

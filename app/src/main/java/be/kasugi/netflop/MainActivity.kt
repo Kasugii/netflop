@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import be.kasugi.netflop.data.Thumbs
 import be.kasugi.netflop.data.Tmdb
+import be.kasugi.netflop.data.SettingsStore
 import be.kasugi.netflop.ui.AppState
 import be.kasugi.netflop.ui.NetflopApp
 import be.kasugi.netflop.ui.NetflopTheme
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
         Sounds.init(this)
         Thumbs.init(this)
         Tmdb.init(this)
+        SettingsStore.init(this)
         appState = AppState(applicationContext)
         appState.refreshRoot()
         setContent {

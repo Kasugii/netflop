@@ -19,6 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import be.kasugi.netflop.data.ProfileSettings
+import be.kasugi.netflop.data.SettingsStore
 import be.kasugi.netflop.data.Library
 import be.kasugi.netflop.data.ProfileStore
 import be.kasugi.netflop.data.Scanner
@@ -44,6 +46,7 @@ enum class Section(val label: String) {
 sealed interface Screen {
     data object Intro : Screen
     data object Profiles : Screen
+    data object Settings : Screen
     data class Browse(val section: Section) : Screen
     data class Details(val titleId: String) : Screen
     data class Player(val titleId: String, val episodeKey: String?, val fromStart: Boolean) : Screen
@@ -60,7 +63,35 @@ class AppState(private val context: Context) {
 
     var profileDir by mutableStateOf<File?>(null)
     var profileIndex by mutableStateOf(0)
-    var library by mutableStateOf<Library?>(null)
+    /** Bibliothèque complète (tout le disque) et autorisations du profil. */
+    var fullLibrary by mutableStateOf<Library?>(null)
+    private var viewKey: Any? = null
+    private var viewLib: Library? = null
+
+    /** Réglages du profil ouvert. */
+    val settings: ProfileSettings
+        get() = profileDir?.let { SettingsStore.get(it.name) } ?: ProfileSettings()
+
+    val profileNames: List<String> get() = profiles.map { it.name }
+
+    /** Le profil ouvert peut-il gérer les paramètres ? */
+    val canManage: Boolean
+        get() = profileDir?.let { SettingsStore.canManage(it.name, profileNames) } ?: false
+
+    /** Ce que le profil a le droit de voir. */
+    val library: Library?
+        get() {
+            val full = fullLibrary ?: return null
+            val acc = settings
+            val metaSig = if (acc.ageMax != null) Tmdb.metas.size else -1
+            val key = Triple(full, acc, metaSig)
+            if (key != viewKey) {
+                viewLib = if (acc.isOpen && acc.allowed.isEmpty()) full
+                else full.filtered { acc.isVisible(it, Tmdb.metas[it.id]?.certification) }
+                viewKey = key
+            }
+            return viewLib
+        }
     var store by mutableStateOf<ProfileStore?>(null)
     var loading by mutableStateOf(false)
     var toast by mutableStateOf<String?>(null)
@@ -107,7 +138,7 @@ class AppState(private val context: Context) {
         searchQuery = ""
         profileDir = dir
         profileIndex = index
-        library = lib
+        fullLibrary = lib
         store = st
         loading = false
         wantContentFocus = true
@@ -136,7 +167,7 @@ class AppState(private val context: Context) {
         loading = true
         Tmdb.configure(r)
         val lib = withContext(Dispatchers.IO) { Scanner.scanProfile(r, dir) }
-        library = lib
+        fullLibrary = lib
         loading = false
         prefetch(lib)
         toast = "Bibliothèque actualisée : ${lib.titles.size} titres" +
@@ -178,6 +209,7 @@ fun NetflopApp(state: AppState, requestPermission: () -> Unit) {
             when (screen) {
                 Screen.Intro -> IntroScreen(state) { state.replaceTop(Screen.Profiles) }
                 Screen.Profiles -> ProfilesScreen(state, requestPermission)
+                Screen.Settings -> SettingsScreen(state)
                 is Screen.Browse -> BrowseScreen(state, screen.section)
                 is Screen.Details -> {
                     val t = state.title(screen.titleId)

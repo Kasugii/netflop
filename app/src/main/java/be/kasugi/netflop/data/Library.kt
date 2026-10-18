@@ -57,6 +57,18 @@ class Title(
 class Category(val name: String, val titles: List<Title>)
 
 class Library(val profile: String, val titles: List<Title>, val categories: List<Category>) {
+    /** Copie ne contenant que les titres autorisés. */
+    fun filtered(keep: (Title) -> Boolean): Library {
+        val ok = titles.filter(keep)
+        if (ok.size == titles.size) return this
+        val ids = ok.map { it.id }.toSet()
+        return Library(
+            profile,
+            ok,
+            categories.map { c -> Category(c.name, c.titles.filter { it.id in ids }) }.filter { it.titles.isNotEmpty() },
+        )
+    }
+
     val byId: Map<String, Title> = titles.associateBy { it.id }
 
     /** Licences explicites (dossiers regroupant plusieurs titres) avec au moins 2 titres. */
@@ -163,8 +175,32 @@ object Scanner {
 
     // ---------- Profils ----------
 
-    fun profiles(root: File): List<File> =
-        listSorted(root).filter { it.isDirectory && !it.name.startsWith("_") }
+    private val CATEGORY_WORDS = setOf(
+        "film", "films", "serie", "series", "anime", "animes", "animation", "dessins animes", "dessin anime",
+        "documentaire", "documentaires", "spectacles", "concerts", "emissions", "divers", "movies", "tv", "shows",
+    )
+
+    private fun hasProfileMarker(dir: File): Boolean =
+        avatarOf(dir) != null || Access.fileOf(dir) != null
+
+    /**
+     * Dossiers de profils à la racine de Netflop.
+     * Nouveau rangement : profils = dossiers sans vidéo (avec avatar / acces.txt), catégories partagées à côté.
+     * Ancien rangement : si aucun dossier ne ressemble à un profil, chaque dossier est un profil.
+     */
+    fun profiles(root: File): List<File> {
+        val dirs = listSorted(root).filter { it.isDirectory && !it.name.startsWith("_") }
+        val profiles = dirs.filter { d ->
+            hasProfileMarker(d) || (!containsVideo(d, 4) && normalize(displayCategory(d.name)) !in CATEGORY_WORDS)
+        }
+        return profiles.ifEmpty { dirs }
+    }
+
+    /** Catégories communes à tous les profils (dossiers à la racine qui ne sont pas des profils). */
+    fun sharedCategories(root: File): List<File> {
+        val profs = profiles(root).toSet()
+        return listSorted(root).filter { it.isDirectory && !it.name.startsWith("_") && it !in profs }
+    }
 
     fun avatarOf(profileDir: File): File? = findImage(profileDir, listOf("avatar", "profil", "profile"))
 
@@ -186,13 +222,18 @@ object Scanner {
         val titles = mutableListOf<Title>()
         val cats = mutableListOf<Category>()
         val loose = mutableListOf<Title>()
-        for (child in listSorted(profileDir)) {
+        for (child in sharedCategories(root) + listSorted(profileDir)) {
             if (child.isDirectory) {
                 val catName = displayCategory(child.name)
                 val list = mutableListOf<Title>()
                 scanEntries(root, child, catName, null, list)
                 if (list.isNotEmpty()) {
-                    cats += Category(catName, list)
+                    val existing = cats.indexOfFirst { normalize(it.name) == normalize(catName) }
+                    if (existing >= 0) {
+                        cats[existing] = Category(cats[existing].name, cats[existing].titles + list)
+                    } else {
+                        cats += Category(catName, list)
+                    }
                     titles += list
                 }
             } else if (isVideo(child)) {

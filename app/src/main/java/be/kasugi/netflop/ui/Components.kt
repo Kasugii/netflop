@@ -53,6 +53,7 @@ import be.kasugi.netflop.data.Kind
 import be.kasugi.netflop.data.Thumbs
 import be.kasugi.netflop.data.Title
 import be.kasugi.netflop.data.Tmdb
+import be.kasugi.netflop.data.normalize
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -409,9 +410,11 @@ fun MetaRow(t: Title, extra: String? = null) {
             Spacer(Modifier.width(12.dp))
         }
         val genres = m?.genres?.take(3).orEmpty()
+        val cat = t.category.takeIf { c -> normalize(c).let { it !in FILM_WORDS && it !in SERIE_WORDS } }
         val tail = listOfNotNull(
             kindLine(t),
-            genres.takeIf { it.isNotEmpty() }?.joinToString(" · "),
+            cat,
+            genres.filter { g -> cat == null || normalize(g) != normalize(cat) }.takeIf { it.isNotEmpty() }?.joinToString(" · "),
             extra,
         ).joinToString("  •  ")
         MetaText(tail, maxLines = 1)
